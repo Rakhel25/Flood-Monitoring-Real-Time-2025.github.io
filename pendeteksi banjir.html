@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+  <link rel="stylesheet" href="style.css">
+<head>
+  <title>Monitoring Banjir IoT</title>
+  <meta charset="UTF-8">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="box">
+    <h2>Monitoring Banjir IoT</h2>
+    <p>Ketinggian Air: <span id="water">-</span> cm</p>
+    <p>Status Air: <span id="statusAir">-</span></p>
+    <p>Intensitas Hujan: <span id="rain">-</span></p>
+    <p>Status Hujan: <span id="statusHujan">-</span></p>
+    <div id="peringatan" class="aman">Aman</div>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <!-- 🎵 Audio peringatan -->
+  <audio id="alarmSound" loop>
+    <source src="./alarm.mp3" type="audio/ogg">
+    Browser kamu tidak mendukung audio.
+  </audio>
+
+  <script>
+    const ctx = document.getElementById('chart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'Tinggi Air (cm)', data: [], borderColor: 'blue', fill: false },
+          { label: 'Sensor Hujan', data: [], borderColor: 'green', fill: false }
+        ]
+      },
+      options: {
+        responsive: true,
+        animation: false,
+        scales: { y: { beginAtZero: true } }
+      }
+    });
+
+    const alarmSound = document.getElementById('alarmSound');
+    let alarmPlaying = false;
+
+    async function getData() {
+      try {
+        const response = await fetch("http://10.69.160.46/data");
+        const data = await response.json();
+
+        document.getElementById('water').textContent = data.waterLevel;
+        document.getElementById('rain').textContent = data.rain;
+        document.getElementById('statusAir').textContent = data.statusAir;
+        document.getElementById('statusHujan').textContent = data.statusHujan;
+
+        const peringatanBox = document.getElementById('peringatan');
+        peringatanBox.textContent = data.peringatan;
+
+        if (data.waterLevel >= 10) {
+          peringatanBox.className = "bahaya";
+          if (!alarmPlaying) {
+            alarmSound.play().catch(e => console.log("Autoplay dicegah, klik layar dulu"));
+            alarmPlaying = true;
+          }
+        } else {
+          peringatanBox.className = "aman";
+          if (alarmPlaying) {
+            alarmSound.pause();
+            alarmSound.currentTime = 0;
+            alarmPlaying = false;
+          }
+        }
+
+        const waktu = new Date().toLocaleTimeString();
+        chart.data.labels.push(waktu);
+        chart.data.datasets[0].data.push(data.waterLevel);
+        chart.data.datasets[1].data.push(data.rain);
+        if (chart.data.labels.length > 10) {
+          chart.data.labels.shift();
+          chart.data.datasets[0].data.shift();
+          chart.data.datasets[1].data.shift();
+        }
+        chart.update();
+      } catch (error) {
+        console.error("Gagal ambil data:", error);
+      }
+    }
+
+    setInterval(getData, 3000);
+  </script>
+</body>
+</html>
